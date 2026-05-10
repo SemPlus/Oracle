@@ -5,6 +5,7 @@ import Dashboard from './components/Dashboard';
 import { OracleLogo } from './components/OracleLogo';
 import { LogIn, Globe, Shield } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { Toaster, toast } from 'sonner';
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -28,6 +29,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen selection:bg-yellow-500/30 selection:text-yellow-200 bg-zinc-950 text-zinc-200">
+      <Toaster theme="dark" position="top-right" richColors />
       <AnimatePresence mode="wait">
         {!user ? (
           <motion.div 
@@ -54,7 +56,16 @@ export default function App() {
 
               <div className="space-y-6">
                 <button
-                  onClick={loginWithGoogle}
+                  onClick={async () => {
+                    try {
+                      await loginWithGoogle();
+                    } catch (error: any) {
+                      console.error('Login Error:', error);
+                      toast.error('Authentication Failed', { 
+                        description: error.message || 'Check your internet connection and authorized domains.' 
+                      });
+                    }
+                  }}
                   className="w-full h-14 bg-yellow-600 text-black rounded-xl flex items-center justify-center gap-3 hover:bg-yellow-500 transition-all font-bold uppercase text-xs tracking-[0.15em] shadow-[0_0_20px_rgba(234,179,8,0.2)] active:scale-[0.98]"
                 >
                   <LogIn className="w-4 h-4" />
