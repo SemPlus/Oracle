@@ -63,21 +63,24 @@ function MapResizer({ selectedPulse }: { selectedPulse: any }) {
 // Custom Marker Creators
 const createMarkerIcon = (impact: string) => {
   const color = impact === 'High' ? '#ef4444' : impact === 'Med' ? '#f59e0b' : '#10b981';
-  const size = impact === 'High' ? 20 : impact === 'Med' ? 16 : 12;
+  const innerSize = impact === 'High' ? 16 : impact === 'Med' ? 12 : 10;
+  const hitSize = 32; // Larger clickable area
   const isHigh = impact === 'High';
   
   return L.divIcon({
     className: 'custom-div-icon',
     html: `
-      <div class="relative flex items-center justify-center" style="width: ${size}px; height: ${size}px;">
-        ${isHigh ? `<div class="absolute inset-0 rounded-full bg-red-500 animate-ping opacity-40"></div>` : ''}
-        <div class="absolute inset-0 rounded-full border-2 border-white shadow-lg" style="background-color: ${color};"></div>
+      <div class="flex items-center justify-center" style="width: ${hitSize}px; height: ${hitSize}px; pointer-events: auto;">
+        <div class="relative flex items-center justify-center" style="width: ${innerSize}px; height: ${innerSize}px;">
+          ${isHigh ? `<div class="absolute inset-0 rounded-full bg-red-500 animate-ping opacity-50" style="width: ${innerSize * 2}px; height: ${innerSize * 2}px; margin-left: -${innerSize / 2}px; margin-top: -${innerSize / 2}px;"></div>` : ''}
+          <div class="absolute inset-0 rounded-full border border-white shadow-lg" style="background-color: ${color}; z-index: 2;"></div>
+        </div>
       </div>
     `,
-    iconSize: [size, size],
-    iconAnchor: [size / 2, size / 2],
-    popupAnchor: [0, -size / 2],
-    tooltipAnchor: [size / 2 + 5, 0]
+    iconSize: [hitSize, hitSize],
+    iconAnchor: [hitSize / 2, hitSize / 2],
+    popupAnchor: [0, -hitSize / 2],
+    tooltipAnchor: [hitSize / 2 + 5, 0]
   });
 };
 
@@ -173,6 +176,8 @@ const getZonePolygon = (event: string, lat: number, lng: number, impact: string)
   ];
 };
 
+import { ContagionLayer } from './ContagionLayer';
+
 export default function Dashboard({ user, onLogout }: { user: User, onLogout: () => void }) {
   const MOCK_NOW = new Date('2026-02-28T14:10:00Z');
   const [pulses, setPulses] = useState<PulseData[]>([]);
@@ -260,7 +265,7 @@ export default function Dashboard({ user, onLogout }: { user: User, onLogout: ()
        setIsGenerating(true);
        setStatuses([]);
        
-       const discoverySteps = [
+       const discoverySteps: { agent: 'Scout' | 'Synthesizer' | 'Oracle', message: string, status: string }[] = [
          { agent: 'Scout', message: 'Probing regional data silos for encrypted packets...', status: 'processing' },
          { agent: 'Scout', message: `Uplink established with Node_0${discoveredCount + 1}.`, status: 'complete' },
          { agent: 'Synthesizer', message: 'Synthesizing historical telemetry flows...', status: 'processing' },
@@ -1245,11 +1250,16 @@ export default function Dashboard({ user, onLogout }: { user: User, onLogout: ()
                       <div className="text-lg font-bold text-white mb-2 font-mono tabular-nums">
                         {asset.current}
                       </div>
-                      <div className="h-20 w-full">
+                      <div className="h-20 w-full relative">
+                        <div className="absolute bottom-1 right-1 opacity-20 group-hover:opacity-60 transition-opacity z-10 pointer-events-none">
+                           <div className="flex items-center gap-0.5 grayscale contrast-125">
+                              <svg viewBox="0 0 24 24" className="w-2 h-2 text-white fill-current"><path d="M12 2L2 19.74h20L12 2zm0 3.54L18.82 17.5H5.18L12 5.54z"/></svg>
+                              <span className="text-[6px] font-black tracking-tighter text-white uppercase italic">TradingView</span>
+                           </div>
+                        </div>
                         <ResponsiveContainer width="100%" height="100%">
                           <AreaChart data={asset.data}>
                             <Tooltip 
-                              labelKey="displayDate"
                               contentStyle={{ 
                                 backgroundColor: '#000', 
                                 border: '1px solid #eab30833',
@@ -1276,11 +1286,11 @@ export default function Dashboard({ user, onLogout }: { user: User, onLogout: ()
                   ))}
                 </section>
 
-                {/* Interactive Geopolitical Map */}
+                {/* Interactive Geopolitical Map (Leaflet + D3 Contagion Overlay) */}
                 <section className="tech-card border-yellow-500/10 overflow-hidden relative">
                   <div className="p-4 border-b border-zinc-800 bg-black/40 flex justify-between items-center absolute top-0 left-0 w-full z-10 backdrop-blur-sm">
                     <h2 className="section-label mb-0 flex items-center gap-2">
-                       <Globe className="w-3 h-3" /> Tactical_Overlay_Map
+                       <Globe className="w-3 h-3" /> Tactical_Contagion_Map
                     </h2>
                     <div className="flex items-center gap-4">
                       <button 
@@ -1292,9 +1302,13 @@ export default function Dashboard({ user, onLogout }: { user: User, onLogout: ()
                         <Activity className={`w-3 h-3 ${showZones ? 'animate-pulse' : ''}`} />
                         {showZones ? 'Zones_Active' : 'Show_Zones'}
                       </button>
+                      <div className="flex items-center gap-2 px-3 py-1 bg-yellow-500/10 border border-yellow-500/20 rounded-full text-[8px] font-mono text-yellow-500 uppercase tracking-widest font-black">
+                         <div className="w-1.5 h-1.5 rounded-full bg-yellow-500 animate-pulse" />
+                         D3_Vectors_Engaged
+                      </div>
                     </div>
                   </div>
-                  <div className="h-[400px] w-full bg-zinc-950">
+                  <div className="h-[500px] w-full bg-zinc-950">
                       <MapContainer 
                         center={[20, 10]} 
                         zoom={2} 
@@ -1304,6 +1318,7 @@ export default function Dashboard({ user, onLogout }: { user: User, onLogout: ()
                         dragging={true}
                         zoomControl={true}
                         minZoom={2}
+                        maxZoom={12}
                       >
                         <MapResizer selectedPulse={selectedPulse} />
                         <TileLayer
@@ -1311,9 +1326,13 @@ export default function Dashboard({ user, onLogout }: { user: User, onLogout: ()
                           subdomains="abcd"
                           attribution='&copy; CARTO'
                         />
+                        
+                        {/* kinetic contagion flow layer */}
+                        <ContagionLayer selectedPulse={selectedPulse} />
+
                           {/* Render Zones First (Grouped by Event) */}
                           {(() => {
-                            const groupedByEvent = selectedPulse.hotspots.reduce((acc: any, h: any) => {
+                            const groupedByEvent = (selectedPulse.hotspots || []).reduce((acc: any, h: any) => {
                               if (h.lat === undefined || h.lng === undefined || h.lat === null || h.lng === null) return acc;
                               if (!h.event) return acc;
                               if (!acc[h.event]) acc[h.event] = [];
@@ -1345,7 +1364,7 @@ export default function Dashboard({ user, onLogout }: { user: User, onLogout: ()
                           })()}
 
                           {/* Render Markers on Top */}
-                          {selectedPulse.hotspots.map((h, i) => {
+                          {(selectedPulse.hotspots || []).map((h, i) => {
                             if (h.lat === undefined || h.lng === undefined || h.lat === null || h.lng === null) return null;
                             
                             return (
@@ -1354,7 +1373,10 @@ export default function Dashboard({ user, onLogout }: { user: User, onLogout: ()
                                 position={[h.lat, h.lng]}
                                 icon={createMarkerIcon(h.impact)}
                                 eventHandlers={{
-                                  click: () => setSelectedHotspot({ hotspots: [h], isZone: false })
+                                  click: (e: L.LeafletMouseEvent) => {
+                                    L.DomEvent.stopPropagation(e.originalEvent);
+                                    setSelectedHotspot({ hotspots: [h], isZone: false });
+                                  }
                                 }}
                               >
                                 <MapTooltip className="premium-map-tooltip" direction="top" offset={[0, -10]}>
@@ -1370,20 +1392,6 @@ export default function Dashboard({ user, onLogout }: { user: User, onLogout: ()
                             );
                           })}
                       </MapContainer>
-                  </div>
-                  <div className="absolute bottom-4 left-4 flex gap-4 z-10">
-                    <div className="flex items-center gap-1.5 px-2 py-1 bg-black/80 backdrop-blur border border-zinc-800 rounded shadow-xl">
-                      <div className="w-1.5 h-1.5 rounded-full bg-red-500"></div>
-                      <span className="text-[8px] font-mono text-zinc-400 uppercase">High_Risk</span>
-                    </div>
-                    <div className="flex items-center gap-1.5 px-2 py-1 bg-black/80 backdrop-blur border border-zinc-800 rounded shadow-xl">
-                      <div className="w-1.5 h-1.5 rounded-full bg-yellow-500"></div>
-                      <span className="text-[8px] font-mono text-zinc-400 uppercase">Medium_Risk</span>
-                    </div>
-                    <div className="flex items-center gap-1.5 px-2 py-1 bg-black/80 backdrop-blur border border-zinc-800 rounded shadow-xl">
-                      <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
-                      <span className="text-[8px] font-mono text-zinc-400 uppercase">Stable</span>
-                    </div>
                   </div>
                 </section>
 
@@ -1843,9 +1851,18 @@ export default function Dashboard({ user, onLogout }: { user: User, onLogout: ()
               <div className="p-6 border-b border-zinc-800 bg-black/40 flex justify-between items-center">
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-yellow-500/10 rounded border border-yellow-500/20">
-                    <Target className="w-4 h-4 text-yellow-500" />
+                    <Target className={`w-4 h-4 ${selectedHotspot.isZone ? 'text-zinc-500' : 'text-yellow-500'}`} />
                   </div>
-                  <h2 className="text-xs font-black uppercase tracking-[0.3em] text-white">Intel_Dossier</h2>
+                  <div>
+                    <h2 className="text-xs font-black uppercase tracking-[0.3em] text-white">
+                      {selectedHotspot.isZone ? 'Regional_Zone_Archive' : 'Target_Node_Intelligence'}
+                    </h2>
+                    {selectedHotspot.label && (
+                      <div className="text-[8px] font-mono text-zinc-500 uppercase tracking-widest mt-0.5">
+                        {selectedHotspot.label}
+                      </div>
+                    )}
+                  </div>
                 </div>
                 <button 
                   onClick={() => setSelectedHotspot(null)}
