@@ -189,48 +189,7 @@ export default function Dashboard({ user, onLogout }: { user: User, onLogout: ()
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [selectedAsset, setSelectedAsset] = useState<any | null>(null);
   const [savedAssets, setSavedAssets] = useState<string[]>([]);
-
-  // Fetch saved assets
-  useEffect(() => {
-    if (!user) return;
-    const q = query(collection(db, 'users', user.uid, 'saved_assets'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const assets = snapshot.docs.map(doc => doc.data().assetName);
-      setSavedAssets(assets);
-    }, (error) => {
-      console.error('Watchlist Error:', error);
-    });
-    return () => unsubscribe();
-  }, [user]);
-
-  const toggleSaveAsset = async (assetName: string) => {
-    if (!user) return;
-    const isSaved = savedAssets.includes(assetName);
-    const watchlistRef = collection(db, 'users', user.uid, 'saved_assets');
-    
-    try {
-      if (isSaved) {
-        const q = query(watchlistRef, where('assetName', '==', assetName));
-        const snapshot = await getDocs(q);
-        const deletePromises = snapshot.docs.map(doc => deleteDoc(doc.ref));
-        await Promise.all(deletePromises);
-        toast.success(`Removed ${assetName} from watchlist`);
-      } else {
-        await addDoc(watchlistRef, {
-          assetName,
-          savedAt: serverTimestamp(),
-          userId: user.uid
-        });
-        toast.success(`Priority tracking active for ${assetName}`);
-      }
-    } catch (e: any) {
-      console.error('Watchlist Toggle Error:', e);
-      toast.error('Watchlist Update Failed', { description: e.message });
-    }
-  };
-
-  // Get unique asset classes
-  const assetClasses = Array.from(new Set(pulses.flatMap(p => p.marketCorrelations.map(m => m.assetClass))));
+  const [discoveredCount, setDiscoveredCount] = useState(0);
 
   const handleGenerate = useCallback(async (force: boolean = false, targetDate?: Date) => {
     let finalTargetDate = targetDate;
@@ -293,6 +252,86 @@ export default function Dashboard({ user, onLogout }: { user: User, onLogout: ()
     }
   }, [pulses.length, user?.uid, runPulseOrchestration]);
 
+  const handleRequestIntel = useCallback(async () => {
+    if (isGenerating) return;
+    
+    if (pulses.length > 0 && discoveredCount < pulses.length) {
+       // Simulate a "Decrypting" phase for existing but undiscovered pulses to feel agentic
+       setIsGenerating(true);
+       setStatuses([]);
+       
+       const discoverySteps = [
+         { agent: 'Scout', message: 'Probing regional data silos for encrypted packets...', status: 'processing' },
+         { agent: 'Scout', message: `Uplink established with Node_0${discoveredCount + 1}.`, status: 'complete' },
+         { agent: 'Synthesizer', message: 'Synthesizing historical telemetry flows...', status: 'processing' },
+         { agent: 'Synthesizer', message: 'Data structural integrity validated.', status: 'complete' },
+         { agent: 'Oracle', message: 'Running predictive impact oscillators...', status: 'processing' },
+         { agent: 'Oracle', message: 'Tactical synthesis ready for tactical review.', status: 'complete' },
+       ];
+
+       // Sequential simulation for "discovery"
+       for (let i = 0; i < discoverySteps.length; i++) {
+         const step = discoverySteps[i];
+         setStatuses(prev => {
+           const filtered = prev.filter(s => s.agent !== step.agent);
+           return [...filtered, { agent: step.agent, message: step.message, status: step.status as any }];
+         });
+         await new Promise(resolve => setTimeout(resolve, i % 2 === 0 ? 1200 : 600));
+       }
+       
+       setDiscoveredCount(prev => prev + 1);
+       setSelectedPulse(pulses[discoveredCount]);
+       setIsGenerating(false);
+       toast.success('Archive Node Localized and Decrypted');
+    } else {
+       // Truly generate a new one if all current are discovered or none exist
+       setIsSeeding(true);
+       handleGenerate(false);
+    }
+  }, [pulses, discoveredCount, isGenerating, handleGenerate]);
+
+  // Fetch saved assets
+  useEffect(() => {
+    if (!user) return;
+    const q = query(collection(db, 'users', user.uid, 'saved_assets'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const assets = snapshot.docs.map(doc => doc.data().assetName);
+      setSavedAssets(assets);
+    }, (error) => {
+      console.error('Watchlist Error:', error);
+    });
+    return () => unsubscribe();
+  }, [user]);
+
+  const toggleSaveAsset = async (assetName: string) => {
+    if (!user) return;
+    const isSaved = savedAssets.includes(assetName);
+    const watchlistRef = collection(db, 'users', user.uid, 'saved_assets');
+    
+    try {
+      if (isSaved) {
+        const q = query(watchlistRef, where('assetName', '==', assetName));
+        const snapshot = await getDocs(q);
+        const deletePromises = snapshot.docs.map(doc => deleteDoc(doc.ref));
+        await Promise.all(deletePromises);
+        toast.success(`Removed ${assetName} from watchlist`);
+      } else {
+        await addDoc(watchlistRef, {
+          assetName,
+          savedAt: serverTimestamp(),
+          userId: user.uid
+        });
+        toast.success(`Priority tracking active for ${assetName}`);
+      }
+    } catch (e: any) {
+      console.error('Watchlist Toggle Error:', e);
+      toast.error('Watchlist Update Failed', { description: e.message });
+    }
+  };
+
+  // Get unique asset classes
+  const assetClasses = Array.from(new Set(pulses.flatMap(p => p.marketCorrelations.map(m => m.assetClass))));
+
   useEffect(() => {
     if (assetClasses.length > 0 && !selectedAssetClass) {
       setSelectedAssetClass(assetClasses[0]);
@@ -316,20 +355,20 @@ export default function Dashboard({ user, onLogout }: { user: User, onLogout: ()
       setPulses(data);
       
       if (data.length > 0) {
-        if (!selectedPulse || isSeeding) {
-          console.log('🎯 Auto-selecting latest record');
+        if (isSeeding) {
+          console.log('🎯 Auto-selecting after manual generation');
+          setDiscoveredCount(prev => Math.max(prev, 1));
           setSelectedPulse(data[0]);
-          if (isSeeding) setIsSeeding(false);
+          setIsSeeding(false);
+        } else if (!selectedPulse) {
+          // If no pulse is selected and we didn't just seed, we stay on the blank state
+          console.log('📡 Archive loaded. Standby for selection.');
         } else {
           const updated = data.find(p => p.id === selectedPulse.id);
           if (updated) setSelectedPulse(updated);
         }
-      } else if (!isSeeding && user?.uid && pulses.length === 0) {
-        // Only seed the FIRST report on initial boot to allow progression
-        console.log('🌱 Archive empty. Initiating first mock pulse...');
-        setIsSeeding(true);
-        handleGenerate(false, new Date('2026-02-14T10:00:00Z'));
       }
+      // REMOVED: Auto-seeding logic that forced first generation
       
       // Alerts logic - safely handle date
       if (data.length > 0) {
@@ -483,13 +522,13 @@ export default function Dashboard({ user, onLogout }: { user: User, onLogout: ()
     return data.map(d => slope * d.x + intercept);
   })(correlationTrendDataRaw);
 
-  const correlationTrendData = correlationTrendDataRaw.map((d, i) => ({
+  const correlationTrendData = correlationTrendDataRaw.slice(0, discoveredCount).map((d, i) => ({
     date: d.date,
     value: d.y,
     trend: correlationTrendlineValues[i]
   }));
 
-  const marketBiasData = [...pulses].reverse().map((p) => {
+  const marketBiasData = [...pulses].slice(0, discoveredCount).reverse().map((p) => {
     const increasing = p.marketCorrelations?.filter(m => m.trend === 'Increasing').length || 0;
     const decreasing = p.marketCorrelations?.filter(m => m.trend === 'Decreasing').length || 0;
     return {
@@ -864,6 +903,16 @@ export default function Dashboard({ user, onLogout }: { user: User, onLogout: ()
           )}
 
           <div className={`flex-1 overflow-y-auto p-4 space-y-6 custom-scrollbar w-80 transition-opacity duration-300 ${isSidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+            {/* Discovery Status */}
+            {discoveredCount === 0 && (
+               <div className="p-4 border border-dashed border-zinc-800 rounded-xl bg-zinc-900/10 text-center space-y-2">
+                 <div className="w-8 h-8 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center mx-auto">
+                    <Radio className="w-4 h-4 text-zinc-700 animate-pulse" />
+                 </div>
+                 <div className="text-[10px] font-mono text-zinc-600 uppercase tracking-widest">Awaiting_Uplink</div>
+               </div>
+            )}
+
             {/* Watchlist Section */}
             {savedAssets.length > 0 && (
                <div className="space-y-3">
@@ -909,12 +958,12 @@ export default function Dashboard({ user, onLogout }: { user: User, onLogout: ()
             <div className="space-y-4">
               <div className="flex flex-col gap-2">
                 <button 
-                  onClick={() => handleGenerate(true)}
+                  onClick={handleRequestIntel}
                   disabled={isGenerating}
                   className="w-full h-12 bg-yellow-600/10 border border-yellow-500/40 hover:bg-yellow-600 hover:text-black text-yellow-500 rounded-lg flex items-center justify-center gap-3 font-black uppercase text-[10px] tracking-[0.2em] transition-all disabled:opacity-50 shadow-[0_0_20px_rgba(202,138,4,0.1)]"
                 >
                   {isGenerating ? <Activity className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
-                  Request Intelligence Pulse
+                  Request Intelligence
                 </button>
               </div>
             </div>
@@ -950,7 +999,7 @@ export default function Dashboard({ user, onLogout }: { user: User, onLogout: ()
                         </button>
                       </div>
                     </div>
-    
+
                     {/* (6) Confidence Trend with Interaction */}
                     <div className="space-y-2 p-3 bg-zinc-900/30 rounded-lg border border-zinc-800/40 group hover:border-yellow-500/20 transition-all cursor-crosshair">
                       <div className="flex items-center justify-between">
@@ -1053,24 +1102,25 @@ export default function Dashboard({ user, onLogout }: { user: User, onLogout: ()
                   <h2 className="section-label flex justify-between items-center">
                     <div className="flex items-center gap-2">
                       <span>Archive_Node</span>
-                      <span className="text-[8px] font-mono opacity-50 bg-zinc-800 px-1 rounded">{pulses.length}</span>
+                      <span className="text-[8px] font-mono opacity-50 bg-zinc-800 px-1 rounded">{discoveredCount}</span>
                     </div>
                     <button 
                       onClick={() => setIsPlaybackActive(!isPlaybackActive)}
-                      className={`p-1 rounded border transition-all ${isPlaybackActive ? 'bg-yellow-500/20 border-yellow-500/40 text-yellow-500' : 'bg-zinc-900 border-zinc-800 text-zinc-500 hover:text-zinc-300'}`}
+                      disabled={discoveredCount < 2}
+                      className={`p-1 rounded border transition-all ${isPlaybackActive ? 'bg-yellow-500/20 border-yellow-500/40 text-yellow-500' : 'bg-zinc-900 border-zinc-800 text-zinc-500 hover:text-zinc-300'} disabled:opacity-20`}
                       title={isPlaybackActive ? "Stop Playback" : "Temporal Playback Mode"}
                     >
                       <RefreshCcw className={`w-3 h-3 ${isPlaybackActive ? 'animate-spin' : ''}`} />
                     </button>
                   </h2>
                   <div className="space-y-1 mt-2">
-                    {pulses.length === 0 ? (
+                    {discoveredCount === 0 ? (
                       <div className="py-8 text-center border border-dashed border-zinc-900 rounded-lg">
                         <Database className="w-4 h-4 text-zinc-800 mx-auto mb-2 opacity-20" />
-                        <p className="text-[9px] text-zinc-700 uppercase font-bold tracking-widest">No Intelligence Records</p>
+                        <p className="text-[9px] text-zinc-700 uppercase font-bold tracking-widest leading-tight px-4">Initialization Required to Index Archive</p>
                       </div>
                     ) : (
-                      pulses.map((p, idx) => {
+                      pulses.slice(0, discoveredCount).map((p, idx) => {
                         let displayDate = '??';
                         let fullDate = 'Unknown Date';
                         try {
@@ -1542,20 +1592,112 @@ export default function Dashboard({ user, onLogout }: { user: User, onLogout: ()
                 </section>
               </motion.div>
             ) : (
-                <div className="h-[600px] flex flex-col items-center justify-center gap-6 tech-card border-dashed border-zinc-800 bg-transparent">
-                  <div className="w-16 h-16 rounded-full border border-zinc-800 flex items-center justify-center animate-pulse">
-                    <Activity className="w-6 h-6 text-zinc-700" />
-                  </div>
-                  <div className="text-center space-y-2">
-                    <h3 className="font-mono text-zinc-500 text-[10px] uppercase tracking-[0.5em]">System_Readiness: 100%</h3>
-                    <p className="text-zinc-700 text-[9px] uppercase tracking-widest">Awaiting initialization signal from orchestration node</p>
-                  </div>
-                  <button 
-                    onClick={() => handleGenerate(false)}
-                    className="px-6 py-2 border border-zinc-800 rounded-full text-[10px] text-zinc-500 uppercase tracking-widest hover:border-yellow-500/50 hover:text-yellow-500 transition-all font-bold"
+                <div className="flex-1 flex items-center justify-center p-4">
+                  <motion.div 
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="max-w-xl w-full"
                   >
-                    Initialize First Scan
-                  </button>
+                    <div className="relative group">
+                      {/* Decorative Background Elements */}
+                      <div className="absolute -inset-0.5 bg-gradient-to-r from-yellow-500/20 to-zinc-800/20 rounded-3xl blur opacity-75 group-hover:opacity-100 transition duration-1000 group-hover:duration-200 animate-pulse"></div>
+                      
+                      <div className="relative tech-card border-zinc-800/50 bg-[#080808] p-12 flex flex-col items-center gap-8 overflow-hidden rounded-3xl">
+                        {/* Scanning Line Animation */}
+                        <div className="absolute inset-x-0 h-px bg-yellow-500/10 top-0 animate-scan pointer-events-none" />
+                        
+                        <div className="relative">
+                          <div className="w-24 h-24 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-center relative overflow-hidden group-hover:border-yellow-500/30 transition-colors">
+                            <motion.div
+                              animate={{ 
+                                rotate: [0, 90, 180, 270, 360],
+                                scale: [1, 1.1, 1]
+                              }}
+                              transition={{ duration: 10, repeat: Infinity, ease: "linear" }}
+                            >
+                              <Database className="w-10 h-10 text-zinc-700" />
+                            </motion.div>
+                            {/* Inner Circle Glow */}
+                            <div className="absolute inset-0 bg-gradient-to-tr from-yellow-500/5 to-transparent pointer-events-none" />
+                          </div>
+                          
+                          {/* Pulsing Status Indicators */}
+                          <div className="absolute -top-1 -right-1 w-4 h-4 bg-yellow-500/20 rounded-full flex items-center justify-center">
+                            <div className="w-1.5 h-1.5 bg-yellow-500 rounded-full animate-pulse" />
+                          </div>
+                        </div>
+
+                        <div className="text-center space-y-4">
+                          <div className="space-y-1">
+                            <h3 className="text-2xl font-black text-white uppercase tracking-[0.2em] italic">Terminal_Standby</h3>
+                            <div className="flex items-center justify-center gap-3">
+                               <div className="h-px w-8 bg-zinc-800" />
+                               <span className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest font-bold">Encrypted_Uplink: Ready</span>
+                               <div className="h-px w-8 bg-zinc-800" />
+                            </div>
+                          </div>
+                          <p className="text-zinc-500 text-xs leading-relaxed max-w-sm mx-auto font-mono">
+                            Intelligence archive is synchronized with Global_Nodes. Awaiting tactical synthesis signal for current temporal state.
+                          </p>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4 w-full">
+                           {[
+                             { label: 'Latency', value: '42ms', status: 'Stable' },
+                             { label: 'Auth_Link', value: 'Verified', status: 'Active' },
+                           ].map((item, i) => (
+                             <div key={i} className="p-3 rounded-xl bg-zinc-900/40 border border-zinc-800/50 flex flex-col gap-1">
+                               <span className="text-[8px] font-bold text-zinc-600 uppercase tracking-widest">{item.label}</span>
+                               <div className="flex items-center justify-between">
+                                 <span className="text-[10px] font-mono text-zinc-300 font-bold">{item.value}</span>
+                                 <div className="w-1 h-1 rounded-full bg-emerald-500" />
+                               </div>
+                             </div>
+                           ))}
+                        </div>
+
+                        <div className="w-full space-y-3">
+                          <button 
+                            onClick={handleRequestIntel}
+                            className="w-full py-4 bg-yellow-600 text-black rounded-xl text-xs font-black uppercase tracking-[0.2em] hover:bg-yellow-500 transition-all flex items-center justify-center gap-3 shadow-[0_0_30px_rgba(234,179,8,0.2)] group/btn relative overflow-hidden"
+                          >
+                            <span className="relative z-10 flex items-center gap-2">
+                              <Zap className="w-4 h-4" />
+                              Initialize Synthesis
+                            </span>
+                            <div className="absolute inset-0 bg-gradient-to-r from-yellow-400 to-transparent opacity-0 group-hover/btn:opacity-20 transition-opacity" />
+                          </button>
+                          
+                          {discoveredCount > 0 && (
+                            <p className="text-[9px] text-center text-zinc-600 font-mono uppercase tracking-[0.1em]">
+                              {discoveredCount} nodes synchronized. Select from the <span className="text-zinc-400">Tactical_Archive</span> sidebar
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Meta Data Footer */}
+                    <div className="mt-8 flex justify-between items-center px-4">
+                       <div className="flex items-center gap-4">
+                         <div className="flex flex-col">
+                           <span className="text-[8px] font-bold text-zinc-700 uppercase">System_Load</span>
+                           <div className="w-16 h-1 bg-zinc-900 rounded-full overflow-hidden">
+                             <div className="w-1/3 h-full bg-zinc-800" />
+                           </div>
+                         </div>
+                         <div className="flex flex-col">
+                           <span className="text-[8px] font-bold text-zinc-700 uppercase">Entropy_Level</span>
+                           <div className="w-16 h-1 bg-zinc-900 rounded-full overflow-hidden">
+                             <div className="w-1/2 h-full bg-zinc-800" />
+                           </div>
+                         </div>
+                       </div>
+                       <div className="text-right">
+                         <span className="text-[8px] font-mono text-zinc-700 uppercase">Last_Node_Sync: {MOCK_NOW.toISOString().split('T')[0]}</span>
+                       </div>
+                    </div>
+                  </motion.div>
                 </div>
             )}
           </AnimatePresence>

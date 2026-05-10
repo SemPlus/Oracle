@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { auth, loginWithGoogle, logout } from './lib/firebase';
 import Dashboard from './components/Dashboard';
-import { OracleLogo } from './components/OracleLogo';
 import { LogIn, Globe, Shield } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Toaster, toast } from 'sonner';
@@ -21,8 +20,8 @@ export default function App() {
 
   if (loading) {
     return (
-      <div className="h-screen w-full flex items-center justify-center bg-[#E4E3E0]">
-        <div className="font-mono text-xs animate-pulse">SYSTEM_INITIALIZING...</div>
+      <div className="h-screen w-full flex items-center justify-center bg-black">
+        <div className="font-mono text-xs animate-pulse text-yellow-500">SYSTEM_INITIALIZING...</div>
       </div>
     );
   }
@@ -43,7 +42,6 @@ export default function App() {
               <div className="absolute top-0 left-0 w-full h-1 bg-yellow-500"></div>
               <div className="space-y-4">
                 <div className="flex items-center gap-3">
-                  <OracleLogo className="w-8 h-8" />
                   <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em]">Alpha_Node / v2.4</span>
                 </div>
                 <h1 className="text-5xl font-bold tracking-tight text-white uppercase">
