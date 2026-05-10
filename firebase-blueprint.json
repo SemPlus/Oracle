@@ -1,0 +1,77 @@
+{
+  "entities": {
+    "PulseReport": {
+      "title": "Pulse Report",
+      "description": "A daily synthesized geopolitical and economic forecast.",
+      "type": "object",
+      "properties": {
+        "date": { "type": "string", "format": "date-time" },
+        "summary": { "type": "string" },
+        "hotspots": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "event": { "type": "string" },
+              "impact": { "type": "string", "enum": ["High", "Med", "Low"] },
+              "analysis": { "type": "string" }
+            }
+          }
+        },
+        "marketCorrelations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "assetClass": { "type": "string" },
+              "trend": { "type": "string", "enum": ["Increasing", "Decreasing", "Stable"] },
+              "driver": { "type": "string" }
+            }
+          }
+        },
+        "forecast": {
+          "type": "object",
+          "properties": {
+            "scenarios": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "type": { "type": "string", "enum": ["Bullish", "Bearish", "Base Case"] },
+                  "description": { "type": "string" },
+                  "likelihood": { "type": "string" }
+                }
+              }
+            },
+            "keyIndicator": { "type": "string" }
+          }
+        },
+        "confidenceScore": { "type": "integer", "description": "Score from 1-10" },
+        "confidenceReasoning": { "type": "string" },
+        "rawLog": { "type": "string", "description": "The situational log from the Scout" }
+      },
+      "required": ["date", "summary", "hotspots", "marketCorrelations", "forecast", "confidenceScore"]
+    },
+    "SavedAsset": {
+      "title": "Saved Asset",
+      "description": "An asset class or ticker saved by the user for priority monitoring.",
+      "type": "object",
+      "properties": {
+        "assetName": { "type": "string" },
+        "savedAt": { "type": "string", "format": "date-time" },
+        "userId": { "type": "string" }
+      },
+      "required": ["assetName", "savedAt", "userId"]
+    }
+  },
+  "firestore": {
+    "/pulses/{pulseId}": {
+      "schema": "PulseReport",
+      "description": "Historical and current pulse reports."
+    },
+    "/users/{userId}/saved_assets/{assetId}": {
+      "schema": "SavedAsset",
+      "description": "Assets priority-monitored by the user."
+    }
+  }
+}
